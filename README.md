@@ -1,4 +1,4 @@
-# EPSI SN2 - Symfony
+# EPSI SN2 - Symfony - 2022
 
 ## Composer
 
