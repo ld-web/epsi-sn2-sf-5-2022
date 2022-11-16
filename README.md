@@ -232,3 +232,274 @@ Au-dessus de la signature de cette fonction, on trouvera une **annotation** `@Ro
 Le rôle de base d'un contrôleur étant de communiquer avec les modèles puis de demander le rendu d'une vue, on trouve l'instruction `$this->render('...', [...]);`.
 
 Ce contrôleur va déclencher le rendu d'un template.
+
+### Templates (Vues) - Twig - Introduction
+
+Dans la version webapp, pour faire une application complète, Symfony fournit Twig comme moteur de templates.
+
+Les 3 éléments de syntaxe Twig à retenir sont les suivants :
+
+- Structure de contrôle ou de langage Twig : `{% %}`
+- Evaluer une expression et afficher le résultat à l'écran : `{{ }}`
+- Inscrire un commentaire dans un template : `{# #}`
+
+Exemple d'un fichier Twig :
+
+```twig
+{# base.html.twig #}
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>{% block title %}Mon super titre{% endblock %}</title>
+    {% block stylesheets %}{% endblock %}
+  </head>
+  <body>
+    {% block body %}{% endblock %}
+    {% block javascripts %}{% endblock %}
+  </body>
+</html>
+```
+
+Dans tout fichier de template, on pourra inclure des instructions Twig pour la compilation du template.
+
+Dans ce premier extrait par exemple, on construit un squelette HTML de base.
+
+Le but est d'avoir un template de base commun pour toutes les pages de notre application.
+
+On définit donc dans notre squelette de base différents **blocs**, que nous allons mettre à disposition des templates enfants pour qu'ils définissent chacun leur propre contenu :
+
+```twig
+{# index/index.html.twig #}
+{% extends 'base.html.twig' %}
+
+{% block title %}
+  {# Il est possible de rappeler le contenu du bloc parent avec la fonction parent() #}
+  {{ parent() }} - Hello TestController!
+{% endblock %}
+
+{% block body %}
+
+<div class="example-wrapper">
+  {# On peut afficher la valeur de variables passées par le contrôleur à la vue #}
+  <h1>Hello {{ controller_name }}! ✅</h1>
+</div>
+{% endblock %}
+```
+
+> Les différents blocs définis dans le template parent vont donc prendre le contenu défini dans le template enfant. On pourra donc définir les contenus de chaque page séparément, en gardant une base d'affichage commune (inclusion des CSS et JS de Bootstrap, etc...)
+
+### Base de données
+
+On va renseigner dans un ficher de variables d'environnement les coordonnées d'accès à la base de données, via la variable `DATABASE_URL`.
+
+> IMPORTANT : Avant de pouvoir effectuer des mises à jour dans la base de données, il faut renseigner l'URL d'accès à la base de données dans le fichier .env.local, qui n'est pas intégré au gestionnaire de versions ([Documentation](https://symfony.com/doc/current/doctrine.html#configuring-the-database))
+
+Par la suite, on va pouvoir demander à Doctrine de créer la base de données pour nous avec la commande suivante :
+
+```bash
+php bin/console doctrine:database:create
+```
+
+### Entités - Modèles
+
+Pour créer des entités dans notre application, nous allons utiliser le Maker : `php bin/console make:entity`.
+
+L'assistant ligne de commande est plutôt clair et simple à utiliser. Choisissez pour chaque propriété que vous voulez créer son type, sa taille, nullable ou non, etc...
+
+Une fois notre entité terminée, le Maker nous a créé une classe d'entité dans `src/Entity`.
+
+Cette classe contient différents attributs qui deviendront plus tard les colonnes de nos tables. Par ailleurs, l'encapsulation est respectée puisque pour chaque attribut on peut trouver un **getter** et un **setter** associés.
+
+### Mise à jour de la base de données
+
+Nous allons voir 2 manières de mettre à jour la base de données : les migrations et les mises à jour à la volée.
+
+Dans tous les cas, les mises à jour de base de données se font en **2 étapes** : **préparation & revue** du code SQL qui va être exécuté, puis **exécution** de la mise à jour.
+
+> IMPORTANT : Avant de pouvoir effectuer des mises à jour dans la base de données, il faut renseigner l'URL d'accès à la base de données dans le fichier .env.local, qui n'est pas intégré au gestionnaire de versions ([Documentation](https://symfony.com/doc/current/doctrine.html#configuring-the-database))
+
+#### Migrations
+
+Pour générer une migration, on va simplement exécuter la commande suivante du Maker : `php bin/console make:migration`.
+
+Cette commande va comparer le contenu de nos classes d'entités avec le contenu de la structure de la base de données, puis générer une classe de migration dans le dossier `migrations`, contenant le code SQL nécessaire à la synchronisation des 2 côtés (code & BDD).
+
+Une fois la migration générée, on peut aller vérifier dans le fichier généré que le code SQL correspond aux mises à jour que l'on souhaite effectuer.
+
+Une fois le code SQL passé en revue, on peut exécuter la mise à jour, donc exécuter la migration : `php bin/console doctrine:migrations:migrate`.
+
+Dans ce cas, Doctrine prend le relais : il va vérifier les migrations déjà éventuellement exécutées, pour éviter d'exécuter la même 2 fois, et exécuter celles qui doivent l'être.
+
+> L'approche avec migrations pour la base de données est la manière recommandée pour gérer les évolutions de structures. Elle présente l'avantage principal d'être rigoureuse, avec la génération de classes de migrations permettant de cibler précisément et rigoureusement les mises à jour effectuées. Cependant, il faut bien veiller à ne pas s'emmêler les pinceaux dans les différentes mises à jour de structures, et que l'outil de migration s'y retrouve également
+
+#### Mise à jour à la volée
+
+Le fonctionnement est similaire, mais ne génère aucun fichier de migration.
+
+Revue du code qui va être exécuté : `php bin/console doctrine:schema:update --dump-sql`.
+
+Exécution à la volée des mises à jour nécessaires : `php bin/console doctrine:schema:update --force`.
+
+### Fixtures - Les données de tests
+
+Une fois qu'on a nos entités, qu'on a créé notre base de données, on aimerait pouvoir insérer des données de test pour travailler sur un ensemble initial de données lors du développement de notre application.
+
+On va pour cela utiliser les **fixtures**.
+
+On installe la dépendance de développement suivante : `orm-fixtures` (il s'agit de l'alias Flex).
+
+La recette exécutée lors de l'installation a créé un fichier `src/DataFixtures/AppFixtures.php`.
+
+C'est dans ce fichier qu'on va créer nos objets et les enregistrer en base de données.
+
+Notre fichier de fixtures, à la base, ressemble à quelque chose comme ça :
+
+```php
+<?php
+
+namespace App\DataFixtures;
+
+use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Persistence\ObjectManager;
+
+class AppFixtures extends Fixture
+{
+  public function load(ObjectManager $manager)
+  {
+    //...
+
+    $manager->flush();
+  }
+}
+```
+
+Dans la méthode `load` de notre classe, on va donc vouloir instancier toutes les entités qu'on souhaite enregistrer en base de données.
+
+Par exemple :
+
+```php
+<?php
+//...
+public function load(ObjectManager $manager)
+{
+  for ($i = 1; $i <= 10; $i++) {
+    $product = new Product();
+    $product
+      ->setName("Produit $i")
+      ->setPrice(15 * $i);
+
+    $manager->persist($product);
+  }
+
+  $manager->flush();
+}
+//...
+```
+
+On peut ensuite générer notre base de tests avec la commande suivante : `php bin/console doctrine:fixtures:load`
+
+### La persistance des entités
+
+Dans l'extrait de code ci-dessus, reprenons les différentes étapes empruntées afin de pouvoir sauvegarder une entité en base de données :
+
+- On instancie un nouvel objet de type `Product`
+- On utilise l'interface fluide pour assigner des valeurs à ses différents attributs, via les setters
+- On **persiste** l'entité
+- On `flush` les changements effectués pour qu'ils soient exécutés en base de données
+
+Lorsqu'on va vouloir créer un nouvel enregistrement en base de données, on va devoir passer par ces étapes. Et particulièrement l'étape de **persistance**.
+
+> L'étape de persistance, c'est-à-dire l'appel à la méthode `persist` de votre gestionnaire d'entités, est indispensable. Il permet tout simplement, après la création d'un objet, de **dire à votre gestionnaire que vous souhaitez qu'il gère cette entité**. Vu qu'elle n'existe pas encore (on vient de la créer manuellement, dans le code, on ne l'a pas récupérée d'une source de données existante), elle sera donc persistée, c'est-à-dire créée en base de données, lorsque vous exécuterez la méthode `flush` du gestionnaire
+
+---
+
+> L'appel à la méthode `flush` permet de **pousser** vers la base de données tous les changements que vous avez demandés à votre gestionnaire d'entités. Pour notre exemple, il s'agit, après avoir demandé à notre gestionnaire de gérer l'entité, de l'insérer de manière concrète dans la base de données, donc d'exécuter le code SQL nécessaire à son insertion. Ceci nous permet de pouvoir demander plusieurs opérations à notre gestionnaire (insertion, modification, suppression), puis d'effectuer un seul appel à `flush` pour regrouper toutes les requêtes. Ce serait trop lourd si on devait exécuter une requête à chaque fois qu'on demandait quelque chose au gestionnaire
+
+### Afficher des données
+
+Nous disposons à présent de données aléatoires générées automatiquement dans notre base de données.
+
+Nous allons donc pouvoir les afficher à l'écran !
+
+Pour les afficher, il faut donc que notre **vue** dispose d'une collection de produits à afficher.
+
+> Dans le pattern MVC, le contrôleur est chargé d'agir en tant que "_glue_" entre le modèle et la vue. Dans Symfony, il va donc se charger de récupérer les produits auprès d'une couche de service (les repositories), puis transmettre le résultat obtenu à la vue
+
+#### Les repositories
+
+Dans Symfony, les repositories agissent comme une **couche de service**.
+
+Un service, de manière générale dans une application, fournit des fonctionnalités que nous pouvons consommer depuis un autre endroit de l'application. Un service sera généralement représenté par une classe, et les fonctionnalités fournies, par des méthodes.
+
+Dans notre cas, **un repository peut donc être qualifié de service applicatif nous permettant de discuter avec notre base de données, à propos d'un sujet particulier (une entité)**.
+
+On retrouve cette "sectorisation" sur une entité dans le constructeur, par exemple :
+
+```php
+// src/Repository/ProductRepository.php
+//...
+public function __construct(ManagerRegistry $registry)
+{
+    parent::__construct($registry, Product::class);
+}
+//...
+```
+
+Si on explore un peu plus cette classe, on remarque qu'elle hérite d'une classe `ServiceEntityRepository`, qui elle-même hérite d'une classe `EntityRepository`. Ces 2 derniers fichiers appartiennent au package Doctrine, nous ne devons donc **absolument pas** tenter de les modifier (ils se trouvent quelque part dans les vendors).
+
+Une rapide revue de la classe `EntityRepository` nous indique donc que notre `ProductRepository`, par exemple, hérite de méthodes publiques telles que `find`, `findAll`, `findBy`, etc...
+
+> Ce sont ces méthodes que nous voulons utiliser dans notre contrôleur afin de pouvoir récupérer nos produits sans écrire nous-mêmes le SQL. C'est Doctrine qui va se charger de ça pour nous
+
+Si je souhaite communiquer avec ma base de données à propos de produits dans mon contrôleur, je peux donc injecter un argument de type `ProductRepository` afin de consommer les méthodes que ce service nous offre :
+
+```php
+class ProductsController extends AbstractController
+{
+  //...
+  public function index(ProductRepository $productRepository): Response
+  {
+    // 1 - Je récupère les produits en discutant avec ma couche de service
+    $products = $productRepository->findAll();
+
+    // 2 - Je transmets les produits à la vue que je souhaite afficher
+    return $this->render('products/list.html.twig', [
+      'products' => $products,
+    ]);
+  }
+  //...
+}
+```
+
+Pour résumer, nous pouvons donc dire que `ProductRepository` est une **dépendance** de notre contrôleur, puisque ce dernier a besoin de ce service pour pouvoir fonctionner correctement, c'est-à-dire pour pouvoir récupérer les produits qu'il va transmettre à la vue.
+
+Nous venons donc d'**injecter cette dépendance** dans notre contrôleur.
+
+### Afficher les éléments d'une collection dans une vue Twig
+
+Notre contrôleur dispose d'un moyen de récupérer la collection de produits, et peut la transmettre à la vue.
+
+Dans notre template Twig correspondant, nous allons itérer sur la collection afin d'afficher chaque élément. Pour ce faire, nous allons utiliser une boucle [for](https://twig.symfony.com/doc/3.x/tags/for.html) :
+
+```twig
+{% for product in products %}
+  <p>
+    {{ product.name }}
+    -
+    {{ product.price }}€
+  </p>
+{% else %}
+  <p>Pas de produit trouvé.</p>
+{% endfor %}
+```
+
+> Attention, la syntaxe d'une boucle `for` avec Twig ressemble à celle d'un `foreach` en PHP, mais la collection sur laquelle itérer et la variable d'itération à utiliser sont dans le sens inverse ! Sans compter évidemment que le mot `as` change en `in` avec Twig
+
+On remarque que pour afficher un champ d'un objet `Product`, Twig nous permet d'accéder à l'attribut d'un objet à l'aide d'un point `.`
+
+En réalité, il faut bien avoir en tête le mécanisme mis en oeuvre par Twig pour arriver à afficher l'attribut correspondant. En effet, dans notre exemple, les attributs `name` ou `price` sont marqués comme `private` par exemple. Comment Twig peut-il donc deviner comment accéder à sa valeur ?
+
+La réponse se trouve derrière [ce lien](https://twig.symfony.com/doc/3.x/templates.html#variables) : Twig dispose de plusieurs possibilités à explorer sur une variable lorsqu'on tente d'accéder à un attribut de celle-ci.
+
+Dans notre cas, il s'arrête sur le cas "if foo is an object, check that getBar is a valid method", où `foo` est notre variable `product` et `getBar` notre méthode `getName`.
